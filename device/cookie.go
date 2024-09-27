@@ -6,6 +6,8 @@
 package device
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
 	"sync"
@@ -162,7 +164,12 @@ func (st *CookieChecker) CreateReply(
 		return nil, err
 	}
 
-	xchapoly, _ := chacha20poly1305.NewX(st.mac2.encryptionKey[:])
+	//	xchapoly, _ := chacha20poly1305.NewX(st.mac2.encryptionKey[:])
+	block, err := aes.NewCipher(st.mac2.encryptionKey[:])
+	if err != nil {
+		return nil, err
+	}
+	xchapoly, _ := cipher.NewGCM(block)
 	xchapoly.Seal(reply.Cookie[:0], reply.Nonce[:], cookie[:], msg[smac1:smac2])
 
 	st.RUnlock()
@@ -201,8 +208,13 @@ func (st *CookieGenerator) ConsumeReply(msg *MessageCookieReply) bool {
 
 	var cookie [blake2s.Size128]byte
 
-	xchapoly, _ := chacha20poly1305.NewX(st.mac2.encryptionKey[:])
-	_, err := xchapoly.Open(cookie[:0], msg.Nonce[:], msg.Cookie[:], st.mac2.lastMAC1[:])
+	// xchapoly, _ := chacha20poly1305.NewX(st.mac2.encryptionKey[:])
+	block, err := aes.NewCipher(st.mac2.encryptionKey[:])
+	if err != nil {
+		return false
+	}
+	xchapoly, _ := cipher.NewGCM(block)
+	_, err = xchapoly.Open(cookie[:0], msg.Nonce[:], msg.Cookie[:], st.mac2.lastMAC1[:])
 	if err != nil {
 		return false
 	}
